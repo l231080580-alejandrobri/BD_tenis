@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Finalizar Compra{% endblock %}
+
+{% block content %}
+    <h2 class="page-title">✅ Datos de Envío y Contacto</h2>
+
+    <div class="checkout-form-container">
+        
+        <form action="{{ url_for('comprar') }}" method="POST" class="standard-form">
+            
+            <h3>Información del Cliente</h3>
+            
+            <div class="form-group">
+                <label for="nombre">Nombre:</label>
+                <input type="text" id="nombre" name="nombre" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="apellido">Apellido:</label>
+                <input type="text" id="apellido" name="apellido" class="form-control" required>
+            </div>
+
+            <h3>Contacto</h3>
+            
+            <div class="form-group">
+                <label for="correo">Correo Electrónico:</label>
+                <input type="email" id="correo" name="correo" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="telefono">Teléfono:</label>
+                <input type="tel" id="telefono" name="telefono" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="Codigo Postal">Codigo Postal</label>
+                <input type="CP" id="CP" name="CP" class="form-control" required>
+            </div>
+
+            <button type="submit" class="btn-primary btn-full-width">
+                Finalizar Compra y Pagar
+            </button>
+        </form>
+    </div>
+
+{% endblock %}
