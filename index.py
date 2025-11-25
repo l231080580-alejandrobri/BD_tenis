@@ -7,18 +7,16 @@ from reportlab.lib.pagesizes import letter
 import os
 from dotenv import load_dotenv
 import hashlib
-from functools import wraps # Necesario para el decorador login_required
+from functools import wraps
 
-# Cargar variables del archivo .env
+
 load_dotenv()
 
 app = Flask(__name__)
-# ¡IMPORTANTE! Reemplaza esto con una clave segura antes de la producción
-app.secret_key = "TU_CLAVE_SECRETA_SUPER_SEGURA_AQUI" 
 
-# ----------------------------------------
-#   Configuración de la Base de Datos
-# ----------------------------------------
+app.secret_key = "110512" 
+
+
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
@@ -43,9 +41,6 @@ def get_conn():
         # En una aplicación real, se manejaría este error mejor
         raise e
 
-# ======================================================
-#             PROTECCIÓN PARA RUTAS (DECORADOR)
-# ======================================================
 def login_required(f):
     """Decorador para asegurar que una ruta solo sea accesible si el usuario ha iniciado sesión."""
     @wraps(f)
@@ -57,13 +52,9 @@ def login_required(f):
     return wrapper
 
 
-# ======================================================
-#             RUTAS DE AUTENTICACIÓN
-# ======================================================
-
 # LOGIN (Ruta principal "/")
 @app.route("/", methods=["GET", "POST"])
-@app.route("/login", methods=["GET", "POST"]) # Añadimos /login para claridad, aunque / ya apunta aquí
+@app.route("/login", methods=["GET", "POST"]) 
 def login():
     if request.method == "POST":
         correo = request.form["correo"]
@@ -98,7 +89,6 @@ def login():
     return render_template("login.html")
 
 
-# RUTA DE REGISTRO
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
     if request.method == "POST":
@@ -109,7 +99,6 @@ def registro():
         password = request.form["contraseña"]
         telefono = request.form["telefono"]
         
-        # Encriptar la contraseña
         hashed_password = hashlib.sha256(password.encode()).hexdigest()
 
         conn = None
@@ -142,7 +131,6 @@ def registro():
     return render_template("registro.html")
 
 
-# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
@@ -207,10 +195,7 @@ def carrito():
     items = []
     total = 0
 
-    # Iterar sobre los IDs y cantidades guardados en la sesión
     for idp, qty in session["cart"].items():
-        # idp en sesión es str, convertir a int para la consulta si es necesario, 
-        # aunque psycopg2 lo maneja. Lo dejamos como str ya que así se almacena.
         cur.execute("SELECT * FROM productos WHERE id_producto = %s", (idp,))
         p = cur.fetchone()
         
@@ -228,43 +213,34 @@ def carrito():
 # ======================================================
 #               ELIMINAR PRODUCTO DEL CARRITO
 # ======================================================
-# Nota: La ruta duplicada ha sido eliminada. Esta es la versión corregida.
 @app.route("/eliminar/<int:idp>")
 @login_required
 def eliminar(idp):
     """
     Elimina un producto del carrito (session['cart']) por su ID.
-    idp es el ID del producto (id_producto) a eliminar.
     """
     idp_str = str(idp) 
 
     if "cart" in session:
         if idp_str in session["cart"]:
-            # Eliminar la entrada del producto del diccionario del carrito
             session["cart"].pop(idp_str)
-            
-            # Marcar la sesión como modificada
             session.modified = True 
-            
             flash(f"Producto eliminado del carrito.", "info")
         else:
             flash("Ese producto no se encontró en tu carrito.", "error")
     else:
         flash("Tu carrito está vacío.", "warning")
 
-    # Redirigir de nuevo a la página del carrito para ver el estado actualizado
-    # Si quieres volver al catálogo, cambia a url_for("index")
     return redirect(url_for("carrito")) 
 
 
 # ======================================================
-#             COMPRAR (USA ID DE CLIENTE EXISTENTE)
+#             COMPRAR (Captura datos y ticket)
 # ======================================================
 
 @app.route("/comprar", methods=["GET", "POST"])
 @login_required
 def comprar():
-    # 1. OBTENER ID DEL CLIENTE DE LA SESIÓN (YA ESTÁ LOGUEADO)
     id_cliente_existente = session.get("id_cliente") 
     
     if not id_cliente_existente:
@@ -274,23 +250,20 @@ def comprar():
     if request.method == "GET":
         return render_template("comprar.html")
 
+    # --- DATOS DE ENVÍO Y PAGO ---
     codigo_postal = request.form.get("CP", "N/A") 
+    calle = request.form.get("calle", "N/A")
+    num_ext = request.form.get("num_ext", "S/N")
+    num_int = request.form.get("num_int", "")
+    metodo_pago = request.form.get("metodo_pago", "N/A")
     
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    # Si es POST, procede a registrar la VENTA (no el cliente)
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
     
-    # 2. PROCESAR CADA ÍTEM DEL CARRITO EN LA TABLA VENTAS
     if "cart" in session and session["cart"]:
         
         try:
             for idp, qty in session["cart"].items():
-                
-                # Obtener precio y stock del producto
                 cur.execute("SELECT precio, stock FROM productos WHERE id_producto = %s", (idp,))
                 result = cur.fetchone()
 
@@ -307,13 +280,11 @@ def comprar():
                 precio = result["precio"]
                 total_item = precio * qty
 
-                # 3. INSERTAR LA VENTA
                 cur.execute("""
                     INSERT INTO ventas (id_producto, id_clientes, cantidad, total, fecha_salida)
                     VALUES (%s, %s, %s, %s, CURRENT_DATE)
                 """, (idp, id_cliente_existente, qty, total_item))
 
-                # 4. ACTUALIZAR STOCK
                 cur.execute("""
                     UPDATE productos SET stock = stock - %s WHERE id_producto = %s
                 """, (qty, idp))
@@ -326,35 +297,46 @@ def comprar():
             return redirect(url_for("carrito"))
             
         finally:
-            cur.close()
-            conn.close()
+            if cur: cur.close()
+            if conn: conn.close()
         
     else:
         flash("Tu carrito de compras está vacío.", "warning")
         return redirect(url_for("index"))
 
-    # 5. Limpiar el carrito y redirigir al ticket
     session.pop("cart", None)
     
     flash("¡Compra realizada con éxito! Generando su ticket.", "success")
-    return redirect(url_for("ticket", id_cliente=id_cliente_existente))
+    
+    return redirect(url_for("ticket", 
+        id_cliente=id_cliente_existente, 
+        cp=codigo_postal,
+        calle=calle,
+        num_ext=num_ext,
+        num_int=num_int,
+        metodo_pago=metodo_pago
+    ))
 
 
 # ======================================================
-#                       TICKET PDF
+#                     TICKET PDF
 # ======================================================
 
 @app.route("/ticket/<int:id_cliente>")
 @login_required
 def ticket(id_cliente):
+    cp = request.args.get('cp', 'No Especificado')
+    calle = request.args.get('calle', 'No Especificado')
+    num_ext = request.args.get('num_ext', 'S/N')
+    num_int = request.args.get('num_int', '')
+    metodo_pago = request.args.get('metodo_pago', 'No Especificado')
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Nota: La consulta sigue funcionando porque usamos JOIN clientes C 
-    # para obtener el nombre del cliente existente.
     cur.execute("""
         SELECT c.nombre, c.apellido, v.id_producto, v.cantidad, v.total, v.fecha_salida,
-        p.nombre AS nombre_producto
+        p.nombre AS nombre_producto, p.marca, p.talla
         FROM ventas v
         JOIN clientes c ON v.id_clientes = c.id_clientes
         JOIN productos p ON p.id_producto = v.id_producto
@@ -372,64 +354,73 @@ def ticket(id_cliente):
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=letter)
 
-    # 1. Encabezado del Ticket
-    pdf.setFillColorRGB(0.36, 0.25, 0.62) # Morado (similar al diseño web)
+    pdf.setFillColorRGB(0.36, 0.25, 0.62)
     pdf.setFont("Helvetica-Bold", 20)
-    pdf.drawString(50, 750, "THE 4 FANTASTIC- Ticket de Compra")
+    pdf.drawString(50, 750, "THE 4 FANTASTIC - Ticket de Compra")
     
-    pdf.setFillColorRGB(0.1, 0.1, 0.1) # Texto negro
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
     pdf.setFont("Helvetica", 12)
     y = 720
     
-    # 2. Información del Cliente
     cliente = ventas[0]
     pdf.drawString(50, y, f"Cliente: {cliente['nombre']} {cliente['apellido']}")
     pdf.drawString(300, y, f"Fecha: {cliente['fecha_salida'].strftime('%d/%m/%Y')}")
+    y -= 20
+
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(50, y, "Datos de Envío y Pago:")
+    y -= 15
+    pdf.setFont("Helvetica", 11)
+
+    direccion_completa = f"Calle: {calle}"
+    numeros = f"Ext: {num_ext}"
+    if num_int:
+        numeros += f" Int: {num_int}"
+        
+    pdf.drawString(50, y, direccion_completa)
+    pdf.drawString(300, y, numeros)
+    y -= 15
+    pdf.drawString(50, y, f"Código Postal: {cp}")
+    pdf.drawString(300, y, f"Método de Pago: {metodo_pago}")
     y -= 30
     
-    # 3. Encabezados de la tabla
     pdf.setFont("Helvetica-Bold", 11)
     pdf.drawString(50, y, "PRODUCTO")
+    pdf.drawString(125, y, "MARCA")
+    pdf.drawString(210, y, "TALLA")
     pdf.drawString(300, y, "CANTIDAD")
     pdf.drawString(400, y, "TOTAL")
     y -= 15
-    pdf.line(50, y, 550, y) # Línea divisoria
+    pdf.line(50, y, 550, y)
     y -= 15
 
-    # 4. Detalle de Productos
     pdf.setFont("Helvetica", 11)
     subtotal_total = 0
     for v in ventas:
-        # Asegúrate de que el total se formatee a dos decimales
         total_str = "{:,.2f}".format(v['total'])
         pdf.drawString(50, y, f"{v['nombre_producto']}")
+        pdf.drawString(125, y, f"{v['marca']}")
+        pdf.drawString(210, y, f"{v['talla']}")
         pdf.drawString(300, y, f"{v['cantidad']}")
         pdf.drawString(400, y, f"${total_str}")
         subtotal_total += v["total"]
         y -= 20
         
-        if y < 50: # Manejo de múltiples páginas
+        if y < 50:
             pdf.showPage()
             pdf.setFont("Helvetica", 12)
             y = 750
 
-    # 5. Total Final
-    pdf.line(50, y - 10, 550, y - 10) # Línea divisoria
+    pdf.line(50, y - 10, 550, y - 10)
     pdf.setFont("Helvetica-Bold", 14)
-    pdf.setFillColorRGB(0.36, 0.25, 0.62) # Morado para el total
-    pdf.drawString(300, y - 30, "TOTAL PAGADO:")
+    pdf.setFillColorRGB(0.36, 0.25, 0.62)
+    pdf.drawString(250, y - 30, "TOTAL PAGADO:")
     pdf.drawString(400, y - 30, f"${'{:,.2f}'.format(subtotal_total)}")
 
     pdf.save()
     buffer.seek(0)
 
-    # Devolver el PDF
     return send_file(buffer, as_attachment=True, download_name="ticket.pdf", mimetype="application/pdf")
-
-
-# ======================================================
-#                       EJECUCIÓN
-# ======================================================
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5025, debug=True)
