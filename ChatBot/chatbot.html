@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asistente de Tienda</title>
+    <style>
+        
+        :root {
+            --primary-color: #6a0dad; 
+            --secondary-color: #f7f3f9; 
+            --text-color: #333;
+            --bot-bg: #ffffff; 
+            --user-bg: #e6f9f2; 
+            --button-hover: #4e0a7f;
+        }
+        body { 
+            font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            background-color: var(--secondary-color); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #chat-container { 
+            width: 80%; 
+            max-width: 850px; 
+            height: 85vh; 
+            border: none; 
+            background-color: white; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15); 
+            border-radius: 15px; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #chat-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 18px;
+            font-size: 1.3em;
+            font-weight: 700;
+            text-align: center;
+        }
+        #chat-box { 
+            flex-grow: 1;
+            padding: 25px; 
+            overflow-y: auto; 
+            background-color: var(--secondary-color); 
+        }
+        
+        .mensaje-bot { 
+            text-align: left; 
+            margin: 10px 0; 
+            padding: 14px 18px; 
+            background-color: var(--bot-bg); 
+            border-radius: 20px 20px 20px 5px; 
+            max-width: 75%;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+            line-height: 1.5;
+        }
+        .mensaje-usuario { 
+            text-align: right; 
+            margin: 10px 0; 
+            padding: 14px 18px; 
+            background-color: var(--user-bg); 
+            color: var(--text-color);
+            border-radius: 20px 20px 5px 20px;
+            max-width: 75%;
+            margin-left: auto;
+            line-height: 1.5;
+        }
+        .mensaje-usuario strong { color: var(--primary-color); }
+        .mensaje-bot strong { color: var(--primary-color); }
+        .mensaje-bot ul { margin-top: 5px; margin-bottom: 0; padding-left: 20px; }
+        
+        
+        #faq-container {
+            padding: 15px 20px;
+            border-top: 1px solid #eee;
+            background-color: #fff;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .faq-button {
+            padding: 9px 16px;
+            background-color: #ffffff;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color); 
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .faq-button:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-1px); 
+        }
+
+        
+        #input-container { 
+            display: flex; 
+            padding: 15px; 
+            border-top: 1px solid #eee;
+            background-color: #fff;
+        }
+        #user-input { 
+            flex-grow: 1; 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 25px; 
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        #user-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(106, 13, 173, 0.2);
+            outline: none;
+        }
+        #send-button { 
+            padding: 12px 20px; 
+            margin-left: 10px; 
+            background-color: var(--primary-color); 
+            color: white; 
+            border: none; 
+            border-radius: 25px; 
+            cursor: pointer; 
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        #send-button:hover {
+            background-color: var(--button-hover);
+        }
+    </style>
+</head>
+<body>
+
+<div id="chat-container">
+    <div id="chat-header">
+        Asistente de Tienda
+    </div>
+    <div id="chat-box">
+    </div>
+    
+    <div id="faq-container">
+        </div>
+    
+    <div id="input-container">
+        <input type="text" id="user-input" placeholder="Escribe tu consulta o usa los botones...">
+        <button id="send-button" onclick="enviarMensaje()">Enviar</button>
+    </div>
+</div>
+
+<script>
+    const CHATBOT_API_URL = 'http://127.0.0.1:5000/api/chatbot'; 
+    
+    const FAQ = [
+        "Ver inventario y stock",
+        "¿Qué tallas manejan?",
+        "¿Cuál es el precio promedio?",
+        "Buscar tenis Adidas",
+        "Dime el precio del Superstar"
+    ];
+
+    function enviarMensaje(mensajeTexto = null) {
+        const userInput = document.getElementById('user-input');
+        
+        if (mensajeTexto === null) {
+            mensajeTexto = userInput.value.trim();
+        }
+
+        const chatBox = document.getElementById('chat-box');
+
+        if (mensajeTexto === "") {
+            return;
+        }
+
+        // 1. Mostrar mensaje del usuario
+        const msgUsuario = document.createElement('div');
+        msgUsuario.className = 'mensaje-usuario';
+        msgUsuario.innerHTML = '<strong>Tú:</strong> ' + mensajeTexto;
+        chatBox.appendChild(msgUsuario);
+        
+        if (mensajeTexto === userInput.value.trim()) {
+            userInput.value = '';
+        }
+        userInput.focus();
+
+        // 2. Enviar a la API de Flask
+        fetch(CHATBOT_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ mensaje: mensajeTexto })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error de red o del servidor Flask. Código: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // 3. Mostrar respuesta del bot
+            mostrarRespuesta(data.respuesta);
+        })
+        .catch(error => {
+            console.error('Error al comunicarse con el backend:', error);
+            mostrarRespuesta('⚠️ Lo siento, el sistema de datos no está disponible. Asegúrate de que el servidor Python esté activo y las credenciales sean correctas.');
+        });
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function mostrarRespuesta(texto) {
+        const chatBox = document.getElementById('chat-box');
+        const msgBot = document.createElement('div');
+        msgBot.className = 'mensaje-bot';
+        msgBot.innerHTML = '<strong>Asistente:</strong> ' + texto; 
+        chatBox.appendChild(msgBot);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    // Función para crear los botones de FAQ
+    function crearFaqBotones() {
+        const faqContainer = document.getElementById('faq-container');
+        faqContainer.innerHTML = '';
+        
+        FAQ.forEach(pregunta => {
+            const button = document.createElement('button');
+            button.className = 'faq-button';
+            button.textContent = pregunta;
+            button.onclick = () => enviarMensaje(pregunta);
+            faqContainer.appendChild(button);
+        });
+    }
+
+    // Funcionalidad para enviar con la tecla Enter
+    document.getElementById('user-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            enviarMensaje();
+        }
+    });
+
+    // Mensaje inicial de bienvenida
+    window.onload = function() {
+        mostrarRespuesta("👋 ¡Bienvenido! Soy tu asistente inteligente. Pregunta por **tallas**, **stock** o **precio** de cualquier modelo.");
+        crearFaqBotones();
+    }
+</script>
+
+</body>
+</html>
