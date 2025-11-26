@@ -14,4 +14,4 @@ Este es un sistema de una venta y gestion de tenis (interfaces de administrador/
 
 ## Tecnologías
 - Java (NetBeans)
-- PostgreSQL
+- PostgreSQL.
