@@ -12,11 +12,7 @@ from functools import wraps
 
 load_dotenv()
 
-app = Flask(
-    __name__,
-    template_folder="Pagina/templates",
-    static_folder="Pagina/static"
-)
+app = Flask(__name__)
 
 app.secret_key = "110512" 
 
